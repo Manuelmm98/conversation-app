@@ -1,0 +1,21 @@
+version: "3.8"
+
+services:
+  web:
+    image: conversationapp.azurecr.io/conversation-app-web
+    container_name: conversation-app-web
+    build:
+      context: ./webapp/
+      dockerfile: Dockerfile.prod
+    ports:
+      - 80:80
+    depends_on:
+      - api
+  api:
+    image: conversationapp.azurecr.io/conversation-app-api
+    container_name: conversation-app-api
+    build:
+      context: ./webapi/
+      dockerfile: Dockerfile.prod
+    ports:
+      - 5000:5000

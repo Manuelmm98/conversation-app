@@ -1,0 +1,12 @@
+# syntax=docker/dockerfile:1
+
+FROM node:16.17.0-bullseye-slim AS build
+WORKDIR /webapp
+COPY package* ./
+RUN npm install --production
+COPY . .
+RUN npm run build
+
+FROM nginx:stable-alpine
+COPY --from=build /webapp/build /usr/share/nginx/html
+COPY deployment/nginx.default.conf /etc/nginx/conf.d/default.conf

@@ -1,0 +1,25 @@
+version: "3.8"
+
+services:
+  web:
+    build: ./webapp
+    environment:
+      # Needed for hot reload
+      WATCHPACK_POLLING: "true"
+    volumes:
+      # Needed for hot reload
+      - ./webapp:/webapp
+    ports:
+      - 3000:3000
+    depends_on:
+      - api
+  api:
+    build: ./webapi
+    environment:
+      # For some reason hot reload isn't working on the back end
+      WATCHPACK_POLLING: "true"
+    volumes:
+      # For some reason hot reload isn't working on the back end
+      - ./webapi:/webapi
+    ports:
+      - 5000:5000
