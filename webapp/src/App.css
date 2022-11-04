@@ -1,0 +1,68 @@
+@import url("https://fonts.googleapis.com/css2?family=Neucha&display=swap");
+
+.App {
+  width: 100vw;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background-color: black;
+  font-family: "Neucha", cursive;
+}
+
+.heading {
+  text-transform: uppercase;
+  font-size: 80px;
+  margin: 30px 0;
+  color: white;
+  z-index: 1;
+  text-align: center;
+}
+
+@media (max-width: 800px) {
+  .heading {
+    margin: 15px 0;
+    font-size: 35px;
+  }
+}
+
+p {
+  color: white;
+}
+label{
+  font-size: 20px;
+  margin: 20px 0;
+  color: white;
+  z-index: 1;
+  text-align: center;
+}
+
+.record-button {
+  position: relative;
+  justify-content: center;
+  align-items: center;
+  width: 160px;
+  height: 80px;
+  margin: 12px;
+  border-radius: 50px;
+  right: 0px;
+  font-size: 15px;
+  background-color: #ccc;
+  border-color: black;
+  border-width: 1px;
+  border-radius: 5px;
+  color: black;
+  transition: 0.2s all;
+  box-shadow: 0 0 10px black;
+}
+
+.record-button:hover {
+  background-color: #eee;
+}
+
+.text {
+    display: flex;
+    width: 300;
+    position: absolute;
+    align-items: center;
+}
