@@ -158,8 +158,17 @@ const headers = [
      { key: "transcript", label: "TRANSCRIPT" },
      { key: "pole_id", label: "POLE_ID" },
      { key: "damaged_equipment", label: "DAMAGED_EQUIPMENT" },
-     { key: "button", label: "Edit/remove inspection" },    
+     { key: "button", label: "" },    
 ];
+
+const subheaders = [
+     { key: "id", label: "integer" },
+     { key: "date", label: "date" },
+     { key: "transcript", label: "Text" },
+     { key: "pole_id", label: "Text (9 digits)" },
+     { key: "damaged_equipment", label: "Text (CROSSARM/ARRESTER/INSULATOR/NULL)" },
+     { key: "button", label: "Edit/remove button" },    
+]; 
 
 class Importdatabase extends Component<{}, InspectionAPI> {
 
@@ -207,7 +216,15 @@ class Importdatabase extends Component<{}, InspectionAPI> {
                  })}
                </tr>  
              </thead>
-            
+             <thead>
+               <tr>
+                 {subheaders.map((row) => {
+                   return <td key={row.key}>{row.label}</
+                     td>;
+                 })}
+               </tr>  
+             </thead>
+               
              <tbody>     
                {this.state.data.map((ins:InspectionAPI) => {
                  return (      

@@ -12,9 +12,6 @@ import torch
 import whisper
 import re
 
-# # Importing models from local
-# from localmodel import model, model_bloom, tokenizer
-
 # Creating Flask backend
 app = Flask(__name__)
 app.config['DEBUG'] = True
@@ -22,7 +19,7 @@ app.config['DEBUG'] = True
 # Database configurations and modules
 # The URI should be changed to the database location (this is for Windows user and sqlite, for others check at:
 # https://flask-sqlalchemy.palletsprojects.com/en/2.x/config/)
-app.config['SQLALCHEMY_DATABASE_URI'] = r'sqlite:///newdb.sqlite'
+app.config['SQLALCHEMY_DATABASE_URI'] = r'sqlite:///dbpresentation.sqlite'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # To integrate SQLAlchemy to flask
 db = SQLAlchemy(app)
@@ -46,91 +43,10 @@ set_seed(424242)
 ### 5. COMBINING BOTH BLOOM MODEL WITH REGEX MANUAL EXPRESSIONS
 
 ## THIS IS THE FIRST OPTION
-# # App route to take an audioblob and to transcribe it with Whisper
-# @app.route('/api/transcript', methods=['POST', 'GET'])
-# def convert_audio():
-#     """This method should take in audio as a blob and return a transcript."""
-#     # Save audio to file
-#     audio_file = 'audio.wav'
-#     audio_blob = request.files.get('audio')
-#     if audio_blob:
-#         audio_blob.save(audio_file)
-        
-#         # Import file into whisper and delete original file
-#         audio = whisper.load_audio(audio_file)
-#         os.remove(audio_file)
-
-#         # Load audio and pad/trim it to fit 30 seconds
-#         audio = whisper.pad_or_trim(audio)
-
-#         # make log-Mel spectrogram and move to the same device as the model
-#         mel = whisper.log_mel_spectrogram(audio).to(model.device)
-
-#         # detect the spoken language
-#         _, probs = model.detect_language(mel)
-
-#         # decode the audio
-#         options = whisper.DecodingOptions(fp16=False)
-#         result = whisper.decode(model, mel, options)
-        
-#         # Obtaining the transcript
-#         transcript = result.text
-#         # Obtaining the information needed using regex manual expressions from re library
-#         first_answer = getting_pole_ID(transcript)
-#         second_answer = getting_damaged_equipment(transcript)
-        
-#         # Adding our results to the database
-#         add_inspection(transcript, first_answer, second_answer)
-        
-#         return jsonify({
-#             'transcript': result.text,
-#             'answer': 'POLE_ID: ' + first_answer + ', EQUIPMENT_DAMAGED: ' + second_answer
-#         }), 200
-#     return jsonify({'transcript': "the audio request has failed"})
-
-# Extracting PoleID and Damaged Equipment with Re library
-def getting_damaged_equipment(string):
-    string = string.lower()
-    print(string)
-    words = ['crossarm','cross-arm','cross arm', 'insulator', 'arrester', 'arrestor']
-    findbool = False
-    for word in words:
-        if re.search(word,string) is not None:
-            start_index = re.search(word,string).start()
-            len_word = len(word)
-            extracted_word = string[start_index:start_index+len_word]
-            if word in words[0:3]:
-                extracted_word = words[0].upper()
-            elif word in words [4:6]:
-                extracted_word = words[4].upper()
-            extracted_word = extracted_word.upper()
-            findbool = True
-    if findbool == False:
-        extracted_word = 'NULL'
-    return extracted_word
-
-def getting_pole_ID(string):
-    string = string.lower()
-    print(string)
-    pattern = "[0-9]{1,9}"
-    findbool = False
-    if re.findall(pattern,string) is not None:
-        extracted_ID = re.findall(pattern,string)
-        findbool = True
-        len_ID = len(extracted_ID)
-        ID=''
-        for i in range(len_ID):
-            ID = ID + extracted_ID[i]
-    if findbool == False:
-        ID = 'No ID provided'
-    return ID
-
-## THIS IS THE SECOND OPTION
-# BERT paraphrasing to get the equipment we want from an audio and the regex to get the ID
 # App route to take an audioblob and to transcribe it with Whisper
 @app.route('/api/transcript', methods=['POST', 'GET'])
 def convert_audio():
-    """This method should take in audio as a blob and return a transcript and the information needed."""
+    """This method should take in audio as a blob and return a transcript."""
     # Save audio to file
     audio_file = 'audio.wav'
     audio_blob = request.files.get('audio')
@@ -156,61 +72,64 @@ def convert_audio():
         
         # Obtaining the transcript
         transcript = result.text
+        # Obtaining the information needed using regex manual expressions from re library
+        first_answer = regex_pole_ID(transcript)
+        second_answer = regex_damaged_equipment(transcript)
         
-        first_answer = getting_pole_ID(transcript)
-        confidence, second_answer = BERT(transcript)
-    
+        # Adding our results to the database
         add_inspection(transcript, first_answer, second_answer)
-
+        
         return jsonify({
             'transcript': result.text,
-            'answer': 'POLE_ID: ' + first_answer + ', EQUIPMENT_DAMAGED: ' + second_answer + "Confidence: " + confidence
+            'answer': 'POLE_ID: ' + first_answer + ', EQUIPMENT_DAMAGED: ' + second_answer
         }), 200
-
-# BERT function to obtain the ID and the equipment
-def BERT(transcript):
-        tokenizer = AutoTokenizer.from_pretrained("bert-base-cased-finetuned-mrpc")
-        model = AutoModelForSequenceClassification.from_pretrained("bert-base-cased-finetuned-mrpc")
+    return jsonify({'transcript': "the audio request has failed"})
 
 
-        classes = [ "insulator", "crossarm", "arrester", "no"]
-        upper_classes = ["INSULATOR", "CROSSARM", "ARRESTER", 'NULL']
+## THIS IS THE SECOND OPTION
+# # BERT paraphrasing to get the equipment we want from an audio and the regex to get the ID
+# # App route to take an audioblob and to transcribe it with Whisper
+# @app.route('/api/transcript', methods=['POST', 'GET'])
+# def convert_audio():
+#     """This method should take in audio as a blob and return a transcript and the information needed."""
+#     # Save audio to file
+#     audio_file = 'audio.wav'
+#     audio_blob = request.files.get('audio')
+#     if audio_blob:
+#         audio_blob.save(audio_file)
+        
+#         # Import file into whisper and delete original file
+#         audio = whisper.load_audio(audio_file)
+#         os.remove(audio_file)
 
-        sequence_0 = transcript
-        sequence_1 = classes[0]
-        sequence_2 = classes[1]
-        sequence_3 = classes[2]
-        sequence_4 = classes[3]
+#         # Load audio and pad/trim it to fit 30 seconds
+#         audio = whisper.pad_or_trim(audio)
 
-        # The tokenizer will automatically add any model specific separators (i.e. <CLS> and <SEP>) and tokens to
-        # the sequence, as well as compute the attention masks.
-        crossarm = tokenizer(sequence_0, sequence_2, return_tensors="pt")
-        insulator = tokenizer(sequence_0, sequence_1, return_tensors="pt")
-        arrester = tokenizer(sequence_0, sequence_3, return_tensors="pt")
-        null = tokenizer(sequence_0, sequence_4, return_tensors="pt")
+#         # make log-Mel spectrogram and move to the same device as the model
+#         mel = whisper.log_mel_spectrogram(audio).to(model.device)
 
-        insulator_logits = model(**insulator).logits
-        crossarm_logits = model(**crossarm).logits
-        arrester_logits = model(**arrester).logits
-        null_logits = model(**null).logits
+#         # detect the spoken language
+#         _, probs = model.detect_language(mel)
 
-        insulator_results = torch.softmax(insulator_logits, dim=1).tolist()[0][1]
-        crossarm_results = torch.softmax(crossarm_logits, dim=1).tolist()[0][1]
-        arrester_results = torch.softmax(arrester_logits, dim=1).tolist()[0][1]
-        null_results = torch.softmax(null_logits, dim=1).tolist()[0][1]
-        results = [insulator_results, crossarm_results, arrester_results, null_results]
-        total = sum(results)
-        equipment = upper_classes[0]
-        higher_value = results[0]
-        for i in range(len(results)-1):
-            if higher_value < results[i+1]:
-                equipment =  upper_classes[i+1]
-                higher_value = results[i+1]
-                
-        confidence = 100* higher_value / total        
-        return confidence, equipment
+#         # decode the audio
+#         options = whisper.DecodingOptions(fp16=False)
+#         result = whisper.decode(model, mel, options)
+        
+#         # Obtaining the transcript
+#         transcript = result.text
+        
+#         first_answer = regex_pole_ID(transcript)
+#         confidence, second_answer = BERT(transcript)
+        
+#         add_inspection(transcript, first_answer, second_answer)
 
-## THIS IS THE THIRD OPTION
+#         return jsonify({
+#             'transcript': result.text,
+#             'answer': 'POLE_ID: ' + first_answer + ', EQUIPMENT_DAMAGED: ' + second_answer + "Confidence: " + str(confidence)
+#         }), 200
+
+
+# ## THIS IS THE THIRD OPTION
 # # BLOOM LM MODEL to get the information we want from an audio.
 # # App route to take an audioblob and to transcribe it with Whisper
 # @app.route('/api/transcript', methods=['POST', 'GET'])
@@ -246,9 +165,9 @@ def BERT(transcript):
 #         equipment = """\n Question: What is damaged? Answer: the pole damage is """
 #         inp = transcript + pole
 #         # Calling the Bloom function
-#         first_answer = answering_pole(inp)
+#         first_answer = bloomlm_pole(inp)
 #         second_inp = transcript + equipment
-#         second_answer = answering_equipment(second_inp)
+#         second_answer = bloomlm_equipment(second_inp)
     
 #         add_inspection(transcript, first_answer, second_answer)
 
@@ -258,47 +177,7 @@ def BERT(transcript):
 #         }), 200
 
 
-
     
-    
-# Bloom Model function to obtain the PoleID
-def answering_pole(inp):
-   
-    # Tokenization of the input values
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    input_ids = tokenizer(inp, return_tensors='pt').to(device=device)
-    
-    # Model Inference
-    max_length = input_ids['input_ids'].size(dim=1) + 4
-    sample = model_bloom.generate(**input_ids, max_length=max_length, top_k=0, temperature=0.7)
-
-    # Decoding the generated sequence of tokens
-    transcript_size = input_ids['input_ids'].size(dim=1)
-    answer_size = max_length
-    response_size = sample[0,transcript_size:answer_size]
-    response = tokenizer.decode(response_size, truncate_before_pattern=[r"\n\n^#", "^'''", "\n\n\n"])
-
-    return response
-
-# Bloom Model function to obtain the damaged equipment
-def answering_equipment(inp):
-    
-    # Tokenization of the input values
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    input_ids = tokenizer(inp, return_tensors='pt').to(device=device)
-    
-    # Model Inference
-    max_length = input_ids['input_ids'].size(dim=1) + 4
-    sample = model_bloom.generate(**input_ids, max_length=max_length, top_k=0, temperature=0.7)
-
-    # Decoding the generated sequence of tokens
-    transcript_size = input_ids['input_ids'].size(dim=1)
-    answer_size = max_length
-    response_size = sample[0,transcript_size:answer_size]
-    response = tokenizer.decode(response_size, truncate_before_pattern=[r"\n\n^#", "^'''", "\n\n\n"])
-    
-    return response
-
 ## THIS IS THE FOURTH OPTION
 # # BLOOM QA MODEL to get the information we want from an audio.
 # # App route to take an audioblob and to transcribe it with Whisper
@@ -341,25 +220,6 @@ def answering_equipment(inp):
 #             'answer': 'POLE_ID: ' + first_answer + ', EQUIPMENT_DAMAGED: ' + second_answer
 #         }), 200
 
-# Bloom Question Answering Model function to obtain the PoleID and the equipment damaged
-def BloomQA_pole_equipment(transcript):
-   
-    tokenizer = BloomTokenizerFast.from_pretrained("bigscience/bloom-560m")
-    model = BloomForQuestionAnswering.from_pretrained("bigscience/bloom-560m")
-
-    answerer = pipeline(task="question-answering", model=model, tokenizer=tokenizer)
-
-    question = "What is the Pole ID?"
-
-    result = answerer(question, transcript)
-    first_response = result['answer']
-    
-    question2 = "What is damaged?"
-    result = answerer(question2, transcript)
-    
-    second_response = result['answer']
-    
-    return first_response, second_response
 
 ## HERE IT IS THE LAST OPTION
 # # App route to take an audioblob and to transcribe it with Whisper
@@ -395,13 +255,13 @@ def BloomQA_pole_equipment(transcript):
 #         equipment = """\n Question: What is damaged? Answer: the pole damage is """
 #         inp = transcript + pole
 #         # Calling the Bloom function
-#         first_guess = answering_pole(inp)
+#         first_guess = bloomlm_pole(inp)
 #         second_inp = transcript + equipment
-#         second_guess = answering_equipment(second_inp)
+#         second_guess = bloomlm_equipment(second_inp)
         
 #         # Obtaining the information needed using regex manual expressions from re library
-#         first_answer = getting_pole_ID(first_guess)
-#         second_answer = getting_damaged_equipment(second_guess)
+#         first_answer = regex_pole_ID(first_guess)
+#         second_answer = regex_damaged_equipment(second_guess)
         
     
 #         add_inspection(transcript, first_answer, second_answer)
@@ -411,6 +271,153 @@ def BloomQA_pole_equipment(transcript):
 #             'answer': "the guess are: " + first_guess + ' ' + second_guess + 'POLE_ID: ' + first_answer + ', EQUIPMENT_DAMAGED: ' + second_answer
 #         }), 200
 
+
+
+### HERE IT IS THE CODE FROM THE EXTRACTION FUNCTIONS WE HAVE CALLED ABOVE
+## REGEX MANUAL FUNCTIONS
+# Extracting PoleID and Damaged Equipment with Re library
+def regex_damaged_equipment(string):
+    string = string.lower()
+    print(string)
+    words = ['crossarm','cross-arm','cross arm', 'insulator', 'arrester', 'arrestor']
+    findbool = False
+    for word in words:
+        if re.search(word,string) is not None:
+            start_index = re.search(word,string).start()
+            len_word = len(word)
+            extracted_word = string[start_index:start_index+len_word]
+            if word in words[0:3]:
+                extracted_word = words[0].upper()
+            elif word in words [4:6]:
+                extracted_word = words[4].upper()
+            extracted_word = extracted_word.upper()
+            findbool = True
+    if findbool == False:
+        extracted_word = 'NULL'
+    return extracted_word
+
+def regex_pole_ID(string):
+    string = string.lower()
+    print(string)
+    pattern = "[0-9]{1,9}"
+    findbool = False
+    if re.findall(pattern,string) is not None:
+        extracted_ID = re.findall(pattern,string)
+        findbool = True
+        len_ID = len(extracted_ID)
+        ID=''
+        for i in range(len_ID):
+            ID = ID + extracted_ID[i]
+    if findbool == False:
+        ID = 'No ID provided'
+    return ID
+
+## BERT PARAPHRASING FUNCTION
+# BERT function to obtain the equipment damaged
+def BERT(transcript):
+        tokenizer = AutoTokenizer.from_pretrained("bert-base-cased-finetuned-mrpc")
+        model = AutoModelForSequenceClassification.from_pretrained("bert-base-cased-finetuned-mrpc")
+
+
+        classes = [ "insulator", "crossarm", "arrester", "no"]
+        upper_classes = ["INSULATOR", "CROSSARM", "ARRESTER", 'NULL']
+
+        sequence_0 = transcript
+        sequence_1 = classes[0]
+        sequence_2 = classes[1]
+        sequence_3 = classes[2]
+        sequence_4 = classes[3]
+
+        # The tokenizer will automatically add any model specific separators (i.e. <CLS> and <SEP>) and tokens to
+        # the sequence, as well as compute the attention masks.
+        crossarm = tokenizer(sequence_0, sequence_2, return_tensors="pt")
+        insulator = tokenizer(sequence_0, sequence_1, return_tensors="pt")
+        arrester = tokenizer(sequence_0, sequence_3, return_tensors="pt")
+        null = tokenizer(sequence_0, sequence_4, return_tensors="pt")
+
+        insulator_logits = model(**insulator).logits
+        crossarm_logits = model(**crossarm).logits
+        arrester_logits = model(**arrester).logits
+        null_logits = model(**null).logits
+
+        insulator_results = torch.softmax(insulator_logits, dim=1).tolist()[0][1]
+        crossarm_results = torch.softmax(crossarm_logits, dim=1).tolist()[0][1]
+        arrester_results = torch.softmax(arrester_logits, dim=1).tolist()[0][1]
+        null_results = torch.softmax(null_logits, dim=1).tolist()[0][1]
+        results = [insulator_results, crossarm_results, arrester_results, null_results]
+        total = sum(results)
+        equipment = upper_classes[0]
+        higher_value = results[0]
+        for i in range(len(results)-1):
+            if higher_value < results[i+1]:
+                equipment =  upper_classes[i+1]
+                higher_value = results[i+1]
+                
+        confidence = 100* higher_value / total        
+        return confidence, equipment
+
+    
+## BLOOM LM Functions   
+# Bloom Model function to obtain the PoleID
+def bloomlm_pole(inp):
+
+    # Tokenization of the input values
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    input_ids = tokenizer(inp, return_tensors='pt').to(device=device)
+    
+    # Model Inference
+    max_length = input_ids['input_ids'].size(dim=1) + 4
+    sample = model_bloom.generate(**input_ids, max_length=max_length, top_k=0, temperature=0.7)
+
+    # Decoding the generated sequence of tokens
+    transcript_size = input_ids['input_ids'].size(dim=1)
+    answer_size = max_length
+    response_size = sample[0,transcript_size:answer_size]
+    response = tokenizer.decode(response_size, truncate_before_pattern=[r"\n\n^#", "^'''", "\n\n\n"])
+
+    return response
+
+# Bloom Model function to obtain the damaged equipment
+def bloomlm_equipment(inp):
+    
+    # Tokenization of the input values
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    input_ids = tokenizer(inp, return_tensors='pt').to(device=device)
+    
+    # Model Inference
+    max_length = input_ids['input_ids'].size(dim=1) + 4
+    sample = model_bloom.generate(**input_ids, max_length=max_length, top_k=0, temperature=0.7)
+
+    # Decoding the generated sequence of tokens
+    transcript_size = input_ids['input_ids'].size(dim=1)
+    answer_size = max_length
+    response_size = sample[0,transcript_size:answer_size]
+    response = tokenizer.decode(response_size, truncate_before_pattern=[r"\n\n^#", "^'''", "\n\n\n"])
+    
+    return response
+
+
+## BLOOM QUESTION ANSWERING FUNCTION
+# Bloom Question Answering Model function to obtain the PoleID and the equipment damaged
+def BloomQA_pole_equipment(transcript):
+   
+    tokenizer = BloomTokenizerFast.from_pretrained("bigscience/bloom-560m")
+    model = BloomForQuestionAnswering.from_pretrained("bigscience/bloom-560m")
+
+    answerer = pipeline(task="question-answering", model=model, tokenizer=tokenizer)
+
+    question = "What is the Pole ID?"
+
+    result = answerer(question, transcript)
+    first_response = result['answer']
+    
+    question2 = "What is damaged?"
+    result = answerer(question2, transcript)
+    
+    second_response = result['answer']
+    
+    return first_response, second_response    
+    
 
 ### HERE IT IS THE CODE TO STORE IN THE DATABASE AND TO SEND TO THE FRONTEND IN A TABLE
 ## App route to take the database data and send it to the frontend
