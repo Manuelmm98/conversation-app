@@ -5,8 +5,6 @@ interface AppState {
   loading: boolean;
   recording: boolean;
   transcript: string;
-  value: string;
-  enter: boolean;
   answer: string;
 }
 
@@ -37,19 +35,16 @@ function ShowTranscript(props: Partial<AppState>) {
    <div>
      <label>
      Answer:
-       <span>{props.answer}</span>
+         <span>{props.loading ? "Waiting for response" : props.answer}</span>
      </label>
    </div>
  );
 }
 
-export default class App extends Component<{}, AppState> {
-  static displayName = App.name;
-
+class ImportTranscript extends Component<{}, AppState> {
   mediaRecorder: MediaRecorder | undefined;
   audioChunks: Blob[] = [];
-  value: string | undefined;
-
+    
   constructor(props: any) {
     super(props);
 
@@ -57,18 +52,11 @@ export default class App extends Component<{}, AppState> {
       loading: false,
       recording: false,
       transcript: "",
-      value: "",
-      enter: false,
-      answer: "",
+      answer: "", 
     }
-
-    this.handleChange = this.handleChange.bind(this);
-    this.handleSubmit = this.handleSubmit.bind(this);
-    this.handleEnter = this.handleEnter.bind(this);
 
     this.toggleRecording = this.toggleRecording.bind(this);
   }
-
   componentDidMount() {
     // Set up media controls
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
@@ -87,10 +75,10 @@ export default class App extends Component<{}, AppState> {
             this.setState({ loading: true });
             this.generateTranscript(data);
 
-            // Play back audio as a sanity check
-            const audioUrl = URL.createObjectURL(audioBlob);
-            const audio = new Audio(audioUrl);
-            audio.play();
+//             // Play back audio as a sanity check
+//             const audioUrl = URL.createObjectURL(audioBlob);
+//             const audio = new Audio(audioUrl);
+//             audio.play();
 
             // Clear audio chunks
             this.audioChunks = [];
@@ -103,16 +91,6 @@ export default class App extends Component<{}, AppState> {
       alert("getUserMedia is not supported in this browser");
     }
   }
-  componentDidUpdate() {
-    // Setting up the question
-    if (this.state.enter) {
-      console.log('here we are again');
-      let newData = new FormData();
-      newData.append('transcript', this.state.transcript);
-      newData.append('question', this.state.value);
-      this.generateAnswer(newData);
-    }
-  }
 
   async generateTranscript(data: FormData) {
     console.log('Here we are')
@@ -120,12 +98,13 @@ export default class App extends Component<{}, AppState> {
       method: 'POST',
       body: data
     }).then(response => response.json()
-    ).then(data => {
-      this.setState({
-        transcript: data.transcript,
-        loading: false,
-      })
-    });
+      ).then(data => {
+        this.setState({
+          transcript: data.transcript,
+          answer: data.answer,  
+          loading: false,
+        })
+      });
   }
 
 
@@ -143,48 +122,9 @@ export default class App extends Component<{}, AppState> {
     })
   }
 
-  handleChange(event: any) {
-    this.setState({
-    value: event.target.value,
-    });
-  }
-
-  handleEnter(e: React.MouseEvent) {
-    e.preventDefault();
-
-    this.setState({
-      enter: !this.state.enter,
-    });
-  }
-
-  handleSubmit(event: any) {
-    alert('A question was submitted: ' + this.state.value);
-    event.preventDefault()
-  }
-
-  async generateAnswer(newData: FormData) {
-    fetch("/api/question", {
-        method:"POST",
-        body:newData
-     })
-      .then(response => {
-        console.log(response)
-        return response.json()
-      })
-      .then(newData => {
-      this.setState({
-        answer: newData.answer,
-        enter: false,
-      })
-      console.log(newData)
-    })
-  }
-
   render() {
     return (
-      <div className="App">
-        <header className='App-header'>
-          <span className="heading">Whisper</span>
+        <div>
           <MediaController
             recording={this.state.recording}
             onClick={this.toggleRecording}
@@ -193,21 +133,117 @@ export default class App extends Component<{}, AppState> {
             transcript={this.state.transcript}
             loading={this.state.loading}
           />
-          <div>
-            <form onSubmit={this.handleSubmit}>
-              <label>
-              Question:
-                <input type="text" value={this.state.value} onChange={this.handleChange}/>
-              </label>
-              <input type="submit" value="Submit" onClick={this.handleEnter}/>
-            </form>
-          </div>
           <ShowTranscript
             answer={this.state.answer}
+            loading={this.state.loading}  
           />
+        </div>
+    );
+  }
+}
+
+interface InspectionAPI {
+    INSPECTION_ID: number,
+    date?: string,
+    transcript: string,
+    POLE_ID: string,
+    DAMAGED_EQUIPMENT: string,
+    data: any
+} 
+
+
+const headers = [
+     { key: "id", label: "INSPECTION_ID" },
+     { key: "date", label: "date" },
+     { key: "transcript", label: "TRANSCRIPT" },
+     { key: "pole_id", label: "POLE_ID" },
+     { key: "damaged_equipment", label: "DAMAGED_EQUIPMENT" },
+     { key: "button", label: "Edit/remove inspection" },    
+];
+
+class Importdatabase extends Component<{}, InspectionAPI> {
+
+  constructor(props: any) {
+    super(props);
+
+    this.state = {
+      INSPECTION_ID: 0,
+      date: '',
+      transcript: '',
+      POLE_ID: '',
+      DAMAGED_EQUIPMENT: '',
+      data: []  
+    }
+
+  }
+
+  componentDidMount() {
+    // Getting the database data
+    this.getDatabase(); 
+  }
+
+  async getDatabase() {
+    fetch("/api/db", {
+        method:"GET",
+     })
+      .then(response => {
+        return response.json()
+      })
+      .then(response => {
+            this.setState({ data: response})
+      console.log(this.state.data)
+      });
+  } 
+
+  render() {
+    return (
+          <div>
+           <table>
+             <thead>
+               <tr>
+                 {headers.map((row) => {
+                   return <td key={row.key}>{row.label}</
+                     td>;
+                 })}
+               </tr>  
+             </thead>
+            
+             <tbody>     
+               {this.state.data.map((ins:InspectionAPI) => {
+                 return (      
+                   <tr key={ins.INSPECTION_ID}>
+                     <td>{ins.INSPECTION_ID}</td>
+                     <td>{ins.date}</td>
+                     <td>{ins.transcript}</td>
+                     <td>{ins.POLE_ID}</td>
+                     <td>{ins.DAMAGED_EQUIPMENT}</td>
+                   </tr>
+                 );
+               })}     
+             </tbody>
+           </table>
+          </div>
+    );
+  }
+}
+
+export default class App extends Component<{}, AppState> {
+
+  handleClick(e: React.MouseEvent) {
+    alert('Second Part is coming');
+    e.preventDefault()
+  }
+
+  render() {
+    return (
+      <div className="App">
+        <header className='App-header'>
+          <span className="heading">Whisper</span>
+          <ImportTranscript />
+          <button onClick={this.handleClick.bind(this)}/>
+          <Importdatabase />  
         </header>
       </div>
     );
   }
 }
-
